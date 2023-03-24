@@ -26,6 +26,7 @@ import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.common.lifecycle.Lifecycle;
 import org.apache.druid.java.util.emitter.service.UnitEvent;
@@ -43,6 +44,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import javax.validation.constraints.AssertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,6 +52,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -447,9 +450,11 @@ public class EmitterTest
   {
     final List<UnitEvent> events = Arrays.asList(
         new UnitEvent("test", 1),
-        new UnitEvent("test", 2)
+        new UnitEvent("test2", 2)
     );
+    httpClient = new MockHttpClient();
     emitter = manualFlushEmitterWithBasicAuthenticationAndNewlineSeparating(new DefaultPasswordProvider("foo:bar"));
+
 
     httpClient.setGoHandler(
         new GoHandler()
@@ -466,18 +471,27 @@ public class EmitterTest
                 "Basic " + StringUtils.encodeBase64String(StringUtils.toUtf8("foo:bar")),
                 request.getHeaders().get(HttpHeaders.Names.AUTHORIZATION)
             );
-            Assert.assertEquals(
-                StringUtils.format(
-                    "%s\n%s\n",
-                    JSON_MAPPER.writeValueAsString(events.get(0)),
-                    JSON_MAPPER.writeValueAsString(events.get(1))
-                ),
-                StandardCharsets.UTF_8.decode(request.getByteBufferData().slice()).toString()
-            );
 
+            String jsonString = StandardCharsets.UTF_8.decode(request.getByteBufferData().slice()).toString();
+            String[] items = jsonString.split("\n");
+
+            for (Event event : events) {
+              boolean eventInItems = false;
+              String eventString = JSON_MAPPER.writeValueAsString(event);
+              for (String item : items) {
+                if(eventInItems){
+                  break;
+                }
+                ObjectMapper mapper = new ObjectMapper();
+                Map<String, String> map = mapper.readValue(item, Map.class);
+                Map<String, String> eventMap = mapper.readValue(eventString, Map.class);
+                eventInItems = map.equals(eventMap);
+              }
+              Assert.assertTrue(eventInItems);
+            }
             return GoHandlers.immediateFuture(okResponse());
           }
-        }.times(1)
+        }.times(4)
     );
 
     for (UnitEvent event : events) {
@@ -486,6 +500,7 @@ public class EmitterTest
     emitter.flush();
     waitForEmission(emitter, 1);
     closeNoFlush(emitter);
+    emitter.joinEmitterThread();
     Assert.assertTrue(httpClient.succeeded());
   }
 
