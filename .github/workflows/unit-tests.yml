@@ -25,6 +25,17 @@ on:
         type: boolean
         default: true
         description: 'For SQL compatibility'
+  workflow_dispatch:
+    inputs:
+      jdk:
+        required: true
+        type: string
+        description: 'JDK version used to test Druid'
+      sql_compatibility:
+        required: false
+        type: boolean
+        default: true
+        description: 'For SQL compatibility'
 
 jobs:
 #  indexing_modules_test:
