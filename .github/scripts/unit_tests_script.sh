@@ -21,7 +21,10 @@ unset _JAVA_OPTIONS
 
 # Set MAVEN_OPTS for Surefire launcher.
 MAVEN_OPTS='-Xmx2500m' ${MVN} test -pl ${MAVEN_PROJECTS} \
-${MAVEN_SKIP} -Ddruid.generic.useDefaultValueForNull=${DRUID_USE_DEFAULT_VALUE_FOR_NULL}
+${MAVEN_SKIP} -Ddruid.generic.useDefaultValueForNull=${DRUID_USE_DEFAULT_VALUE_FOR_NULL} \
+-Dtest=org.apache.druid.java.util.emitter.core.EmitterTest#testBasicAuthenticationAndNewlineSeparating \
+edu.illinois:nondex-maven-plugin:2.1.1:nondex
+
 sh -c "dmesg | egrep -i '(oom|out of memory|kill process|killed).*' -C 1 || exit 0"
 free -m
 ${MVN} -pl ${MAVEN_PROJECTS} jacoco:report
